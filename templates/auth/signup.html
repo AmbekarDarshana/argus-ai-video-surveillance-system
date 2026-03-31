@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    background: transparent !important;
+}
+
+main.main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+.container-fluid:first-of-type {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+</style>
+<style>
+    /* Reuse Login Styles */
+    .sidebar, nav, .navbar, header, .top-bar { display: none !important; }
+    body {
+        margin: 0; padding: 0; overflow: hidden;
+        background-color: #0f172a;
+        background-image: linear-gradient(rgba(10, 15, 30, 0.9), rgba(10, 15, 30, 0.9)),
+            url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop');
+        background-size: cover; background-position: center;
+        height: 100vh; width: 100vw;
+    }
+    .full-screen-center {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .login-wrapper {
+        width: 380px; padding: 2.5rem; border-radius: 16px;
+        background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+    }
+    .form-control-custom {
+        width: 100%; background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px 15px; border-radius: 8px; color: white;
+        margin-bottom: 1rem; outline: none;
+    }
+    .form-control-custom:focus { border-color: #3b82f6; background: rgba(255, 255, 255, 0.1); }
+    .btn-login {
+        width: 100%; padding: 12px; border-radius: 8px;
+        background: #3b82f6; color: white; border: none; font-weight: 600; cursor: pointer;
+    }
+    .brand-title { color: white; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 1.5rem; }
+    .footer-link { color: #94a3b8; font-size: 0.85rem; text-decoration: none; margin-top: 1rem; display: block; }
+    /* Make sure login overrides global body styles */
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #0f172a !important;
+    background-image:
+        linear-gradient(rgba(10, 15, 30, 0.9), rgba(10, 15, 30, 0.9)),
+        url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop') !important;
+    background-size: cover !important;
+    background-position: center !important;
+}
+main {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    background: transparent !important;
+}
+</style>
+
+<div class="full-screen-center">
+    <div class="login-wrapper">
+        <h2 class="brand-title">CREATE ACCOUNT</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-danger py-2 small mb-3">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="">
+            <input type="text" name="name" class="form-control-custom" placeholder="Full Name" required>
+            <input type="email" name="email" class="form-control-custom" placeholder="Email" required>
+            <input type="password" name="password" class="form-control-custom" placeholder="Password" required>
+            
+            <button type="submit" class="btn-login">SIGN UP</button>
+        </form>
+
+        <a href="{{ url_for('auth.login') }}" class="footer-link">Already have an account? Login</a>
+    </div>
+</div>
+{% endblock %}

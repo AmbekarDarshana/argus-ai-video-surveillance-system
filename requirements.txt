@@ -1,0 +1,11 @@
+Flask==3.0.3
+PyMongo==4.10.1
+bcrypt==4.2.1
+opencv-python==4.10.0.84
+numpy>=2.0,<2.3
+Werkzeug==3.0.4
+python-dotenv==1.0.1
+flask-cors==5.0.0
+ultralytics==8.0.0
+Pillow==10.0.0
+scipy>=1.13.0

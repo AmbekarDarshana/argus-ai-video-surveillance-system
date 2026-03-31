@@ -1,0 +1,205 @@
+/* Global layout / typography */
+body {
+    margin: 0;                  /* <- add this */
+    padding: 0;  
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fb;
+    color: #212529;
+}
+
+/* Top navbar */
+.navbar {
+    background: #0f334b !important; /* deep blue */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+/* Sidebar */
+#sidebar,
+.sidebar {
+    background: #112438;
+    min-height: 100vh;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+#sidebar .nav {
+    font-size: 0.9rem;
+}
+
+#sidebar .nav-item {
+    margin-bottom: 0.1rem;
+}
+
+#sidebar .nav-link {
+    color: #dbe4ff;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.35rem;
+    transition: background-color 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+#sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    transform: translateX(2px);
+}
+
+/* Section labels in sidebar */
+#sidebar .text-muted {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+}
+
+/* Collapsed state (class added to <body>) */
+body.sidebar-collapsed #sidebar {
+    display: none;
+}
+
+body.sidebar-collapsed .main-content {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Main content area */
+.main-content {
+    padding: 1.5rem;
+}
+
+/* Dark mode base (you can expand this if you want full dark theme) */
+.dark-mode {
+    background: #1a1a1a;
+    color: #f0f0f0;
+}
+
+/* Dashboard header */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1rem;
+}
+
+.dashboard-header h1 {
+    font-size: 1.6rem;
+    margin: 0;
+}
+
+.dashboard-header .subtitle {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+/* Summary badges row */
+.summary-badges .badge {
+    font-size: 0.85rem;
+}
+
+/* Video / anomaly UI */
+.video-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.video-player {
+    width: 100%;
+    max-height: 600px;
+    background: #000;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.anomaly-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Anomaly list */
+.list-group-item {
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    transition:
+        background-color 0.18s ease,
+        transform 0.18s ease,
+        border-left-color 0.18s ease;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(3px);
+}
+
+.list-group-item.active-anomaly {
+    background-color: #fff4e6;
+    border-left-color: #0d6efd; /* primary blue */
+}
+
+/* Video controls */
+.video-controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    z-index: 5;
+    position: relative;
+}
+
+.video-controls button {
+    margin: 0;
+}
+
+/* Timeline & markers */
+.anomaly-timeline {
+    height: 18px;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 12px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #e9ecef, #f8f9fa);
+}
+
+.anomaly-marker {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 0, 0, 0.85), rgba(0, 120, 255, 0.6));
+    pointer-events: none;
+    border-radius: 2px;
+    transform: translateX(-0.5%);
+    transition: width 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.anomaly-marker:hover {
+    width: 8px;
+    background: rgba(180, 20, 40, 1);
+    transform: translateX(-2px);
+}
+
+/* Custom progress bar (if used) */
+.progress-bar-custom {
+    height: 100%;
+    background: #007bff;
+    transition: width 0.1s linear;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #sidebar,
+    .sidebar {
+        position: relative;
+        min-height: auto;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+}
+

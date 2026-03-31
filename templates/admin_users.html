@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="padding:30px;">
+  <h2>User Management</h2>
+  <table class="table table-bordered mt-3">
+    <thead><tr><th>Email</th><th>Role</th><th>Disabled</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.email }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ u.disabled|default(false) }}</td>
+        <td>
+          {% if not u.disabled %}
+            <a href="{{ url_for('admin.toggle_user', user_id=u._id) }}?disable=1" class="btn btn-sm btn-warning">Disable</a>
+          {% else %}
+            <a href="{{ url_for('admin.toggle_user', user_id=u._id) }}?disable=0" class="btn btn-sm btn-success">Enable</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold"><i class="fas fa-gem text-primary me-2"></i>Upgrade Your Plan</h2>
+        <p class="text-muted">Choose the perfect plan for your surveillance needs</p>
+    </div>
+    
+    <div class="row g-4 justify-content-center">
+        <!-- Free Plan -->
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm" style="border-top: 4px solid #6c757d;">
+                <div class="card-body text-center p-4">
+                    <h5 class="fw-bold text-secondary">BASIC</h5>
+                   <h1 class="display-4 fw-bold my-3">₹0</h1>
+                    <p class="text-muted">Forever free</p>
+                    <hr>
+                    <ul class="list-unstyled text-start mx-auto" style="max-width: 200px;">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> 1 Camera Feed</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Standard Detection</li>
+                        <li class="mb-2 text-muted"><i class="fas fa-times me-2"></i> No SMS Alerts</li>
+                    </ul>
+                    <button class="btn btn-outline-secondary w-100 mt-3" disabled>Current Plan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pro Plan -->
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow" style="border-top: 4px solid #0d6efd; transform: scale(1.05);">
+                <div class="card-body text-center p-4">
+                    <span class="badge bg-primary mb-2">RECOMMENDED</span>
+                    <h5 class="fw-bold text-primary">PRO</h5>
+                    <h1 class="display-4 fw-bold my-3">₹29</h1>
+                    <p class="text-muted">Per month</p>
+                    <hr>
+                    <ul class="list-unstyled text-start mx-auto" style="max-width: 200px;">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> 5 Camera Feeds</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Weapon Detection</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Real-time Alerts</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Priority Support</li>
+                    </ul>
+                    <button class="btn btn-primary w-100 mt-3">Upgrade Now</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm" style="border-top: 4px solid #198754;">
+                <div class="card-body text-center p-4">
+                    <h5 class="fw-bold text-success">ENTERPRISE</h5>
+                    <h1 class="display-4 fw-bold my-3">₹99</h1>
+                    <p class="text-muted">Per month</p>
+                    <hr>
+                    <ul class="list-unstyled text-start mx-auto" style="max-width: 200px;">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Unlimited Cameras</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Facial Recognition</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> 24/7 Dedicated Support</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Cloud Storage</li>
+                    </ul>
+                    <button class="btn btn-outline-success w-100 mt-3">Contact Sales</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

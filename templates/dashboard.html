@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- FontAwesome for Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    /* --- DASHBOARD STYLES --- */
+    .stat-card {
+        border-left: 5px solid #0d6efd; /* Blue accent */
+        transition: transform 0.2s, box-shadow 0.2s;
+        background: white;
+        border-radius: 8px;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .stat-card.warning { border-left-color: #ffc107; }
+    .stat-card.danger { border-left-color: #dc3545; }
+    .stat-card.success { border-left-color: #198754; }
+
+    /* Camera Grid Cards */
+    .camera-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid #dee2e6;
+        overflow: hidden;
+        border-radius: 8px;
+    }
+    .camera-card:hover {
+        border-color: #0d6efd;
+        transform: scale(1.02);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    /* CCTV Placeholder Look */
+    .camera-placeholder {
+        height: 180px;
+        background-color: #000;
+        position: relative;
+        overflow: hidden;
+    }
+    .camera-placeholder img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.6;
+        transition: 0.3s;
+    }
+    .camera-card:hover .camera-placeholder img {
+        opacity: 0.9;
+        transform: scale(1.05);
+    }
+
+    /* --- NEW LOG FEED STYLES --- */
+    .log-feed-container {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        overflow: hidden;
+        height: 100%;
+        max-height: 800px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .log-header {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .log-scroll-area {
+        overflow-y: auto;
+        flex-grow: 1;
+        background: #fff;
+    }
+
+    /* Custom Scrollbar for Logs */
+    .log-scroll-area::-webkit-scrollbar { width: 6px; }
+    .log-scroll-area::-webkit-scrollbar-track { background: #f1f1f1; }
+    .log-scroll-area::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 10px; }
+
+    .log-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .log-item:hover {
+        background-color: #f8faff;
+        padding-left: 18px; /* Slide effect */
+    }
+
+    /* Icon Circle Styles */
+    .log-icon-wrapper {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        flex-shrink: 0;
+        font-size: 1.1rem;
+    }
+
+    /* Severity Indicators */
+    .severity-high .log-icon-wrapper { background-color: #fee2e2; color: #dc2626; }
+    .severity-med .log-icon-wrapper  { background-color: #fef3c7; color: #d97706; }
+    .severity-low .log-icon-wrapper  { background-color: #e0f2fe; color: #0284c7; }
+
+    .severity-high { border-left: 4px solid #dc2626; }
+    .severity-med  { border-left: 4px solid #d97706; }
+    .severity-low  { border-left: 4px solid #0284c7; }
+    
+    .timestamp {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 600;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+    }
+</style>
+
+<!-- HEADER SECTION -->
+<div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+  <div>
+    <h2 class="fw-bold mb-0 text-uppercase text-dark" style="letter-spacing: 1px;">
+        <i class="fas fa-brain text-primary me-2"></i>Behavior Dashboard
+    </h2>
+    <!-- CHANGED: Subtitle to match project topic -->
+    <div class="text-muted small">AI-powered Behavioral Analysis System</div>
+  </div>
+  
+  <div class="text-end">
+    <h4 id="live-clock" class="mb-0 fw-bold font-monospace text-primary">00:00:00</h4>
+    <div class="mt-1">
+        <span class="badge bg-success rounded-pill"><i class="fas fa-wifi me-1"></i> System Online</span>
+        {% if role == 'admin' %}
+            <span class="badge bg-danger rounded-pill ms-1">ADMIN</span>
+        {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- KPI CARDS SECTION -->
+{% if summary %}
+<div class="row mb-4 g-3">
+    <div class="col-md-4">
+        <div class="card stat-card shadow-sm h-100">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <!-- CHANGED: Label to Anomalies -->
+                    <h6 class="text-muted text-uppercase mb-1 fw-bold" style="font-size: 0.8rem;">Detected Anomalies</h6>
+                    <h2 class="fw-bold mb-0 text-dark">{{ summary.today }}</h2>
+                </div>
+                <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary">
+                    <i class="fas fa-exclamation-triangle fa-lg"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card success shadow-sm h-100">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted text-uppercase mb-1 fw-bold" style="font-size: 0.8rem;">Active Feeds</h6>
+                    <h2 class="fw-bold mb-0 text-dark">{{ summary.cameras }}</h2>
+                </div>
+                <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
+                    <i class="fas fa-video fa-lg"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card warning shadow-sm h-100">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted text-uppercase mb-1 fw-bold" style="font-size: 0.8rem;">Weekly Incidents</h6>
+                    <h2 class="fw-bold mb-0 text-dark">{{ summary.week }}</h2>
+                </div>
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning">
+                    <i class="fas fa-chart-bar fa-lg"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+ <!-- LEFT COLUMN: VIDEO AREA -->
+<div class="col-lg-8">
+
+    {% if video %}
+    <!-- VIDEO PLAYER MODE -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0 fw-bold">
+            <i class="fas fa-play-circle text-danger me-2"></i> {{ video.location }}
+        </h5>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-th-large me-1"></i> Back to Grid
+        </a>
+    </div>
+
+    <div class="mb-3 shadow rounded overflow-hidden bg-black">
+        <video id="video-player" width="100%" height="auto" controls preload="auto" style="max-height: 500px;">
+            <source src="{{ video_url }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <!-- Anomaly Screenshots -->
+    {% set video_anomalies = anomalies|selectattr('video_id', 'equalto', video._id)|list %}
+    {% if video_anomalies %}
+    <h6 class="fw-bold mt-4 mb-3">
+        <i class="fas fa-images text-primary me-2"></i>
+        Detected Anomaly Screenshots ({{ video_anomalies|length }})
+    </h6>
+    <div class="row g-2">
+        {% for a in video_anomalies %}
+        {% if a.image_path %}
+        <div class="col-md-3 col-sm-4">
+            <div class="card shadow-sm h-100">
+                <img src="{{ a.image_path }}" class="card-img-top" alt="{{ a.anomaly_type }}"
+                     style="height: 150px; object-fit: cover; cursor: pointer;"
+                     onclick="jumpToAnomalyTime({{ a.frame_timestamp }})">
+                <div class="card-body p-2">
+                    <small class="fw-bold text-danger">{{ a.anomaly_type }}</small><br>
+                    <small class="text-muted">T={{ "%.1f"|format(a.frame_timestamp) }}s</small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- CAMERA GRID MODE -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-th me-2"></i>
+            {% if role == 'admin' %}Live Feeds Overview{% else %}My Cameras{% endif %}
+        </h5>
+        <a href="{{ url_for('live.live_dashboard') }}" class="btn btn-danger btn-sm shadow-sm">
+            <i class="fas fa-broadcast-tower me-1"></i> View Live Streams
+        </a>
+    </div>
+
+    <div class="row g-3">
+        {# Show assigned cameras for client #}
+        {% if role != 'admin' and assigned_cameras %}
+        {% for cam in assigned_cameras %}
+        <div class="col-md-6">
+            <div class="card h-100 camera-card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                    <span class="fw-bold text-dark" style="font-size: 0.9rem;">
+                        <i class="fas fa-video text-secondary me-2"></i> {{ cam.name or cam.location }}
+                    </span>
+                    {% if cam.status == 'active' %}
+                    <i class="fas fa-circle text-success fa-xs" style="font-size: 8px;"></i>
+                    {% else %}
+                    <i class="fas fa-circle text-danger fa-xs" style="font-size: 8px;"></i>
+                    {% endif %}
+                </div>
+                <div class="camera-placeholder">
+                    <img src="https://media.istockphoto.com/id/1144093855/vector/cctv-camera-scan-locator-hud-interface.jpg?s=612x612&w=0&k=20&c=L_C-gO_d-u-H-rJzE3w-D-t-R-G-E-O-N">
+                    <div class="position-absolute top-50 start-50 translate-middle text-center text-white" style="z-index: 2;">
+                        <i class="fas fa-video fa-3x mb-2" style="filter: drop-shadow(0 0 5px black);"></i>
+                        <div class="small fw-bold text-uppercase bg-black bg-opacity-50 px-2 rounded">{{ cam.location }}</div>
+                    </div>
+                </div>
+                <div class="card-body py-2 px-3 bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">{{ cam.status|capitalize }}</span>
+                        <span class="badge bg-success rounded-pill">Assigned</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {# Show video feeds #}
+        {% for v in videos %}
+        <div class="col-md-6">
+            <div class="card h-100 camera-card shadow-sm" onclick="selectCamera('{{ v._id }}')">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                    <span class="fw-bold text-dark" style="font-size: 0.9rem;">
+                        <i class="fas fa-video text-secondary me-2"></i> {{ v.location }}
+                    </span>
+                    <i class="fas fa-circle text-success fa-xs" style="font-size: 8px;"></i>
+                </div>
+                <div class="camera-placeholder">
+                    <img src="https://media.istockphoto.com/id/1144093855/vector/cctv-camera-scan-locator-hud-interface.jpg?s=612x612&w=0&k=20&c=L_C-gO_d-u-H-rJzE3w-D-t-R-G-E-O-N">
+                    <div class="position-absolute top-50 start-50 translate-middle text-center text-white" style="z-index: 2;">
+                        <i class="fas fa-play-circle fa-3x mb-2" style="filter: drop-shadow(0 0 5px black);"></i>
+                        <div class="small fw-bold text-uppercase bg-black bg-opacity-50 px-2 rounded">Playback</div>
+                    </div>
+                    <div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white p-1 px-3 d-flex justify-content-between">
+                        <small class="font-monospace" style="font-size: 0.7rem;">CAM-0{{ loop.index }}</small>
+                        <small style="font-size: 0.7rem;">REC</small>
+                    </div>
+                </div>
+                <div class="card-body py-2 px-3 bg-light">
+                    {% set count = anomalies|selectattr('video_id', 'equalto', v._id|string)|list|length %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Status: Active</span>
+                        {% if count > 0 %}
+                        <span class="badge bg-danger rounded-pill">{{ count }} Anomalies</span>
+                        {% else %}
+                        <span class="badge bg-success rounded-pill">Normal</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {# Empty state #}
+        {% if not videos and not assigned_cameras %}
+        <div class="col-12 text-center py-5 bg-light rounded border border-dashed">
+            <i class="fas fa-video-slash fa-3x text-muted mb-3 opacity-50"></i>
+            {% if role == 'admin' %}
+            <h5 class="text-muted">No Cameras Connected</h5>
+            <p class="text-muted small">Upload videos or add cameras in admin panel.</p>
+            {% else %}
+            <h5 class="text-muted">No Cameras Assigned</h5>
+            <p class="text-muted small">Contact your administrator to assign cameras.</p>
+            <a href="{{ url_for('main.support') }}" class="btn btn-primary btn-sm mt-2">
+                <i class="fas fa-headset me-1"></i> Request Camera Access
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+</div>
+    
+
+    <!-- RIGHT COLUMN: LOG FEED -->
+    <div class="col-lg-4">
+        <div class="log-feed-container shadow-sm">
+            
+            <!-- 1. Header & Filter -->
+            <div class="log-header">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="fas fa-clipboard-list text-primary me-2"></i>Behavioral Log
+                </h5>
+                
+                <!-- Filter Dropdown -->
+                <form action="" method="get" class="d-flex gap-1">
+    <select name="type" class="form-select ..." onchange="this.form.submit()">
+        <option value="">All Events</option>
+        <!-- UPDATE THESE VALUES to match Classifier names -->
+        <option value="Crowd Anomaly" {% if filters.type=='Crowd Anomaly' %}selected{% endif %}>Crowding</option>
+        <option value="Armed Aggression" {% if filters.type=='Armed Aggression' %}selected{% endif %}>Armed Threat</option>
+        <option value="Fire Hazard" {% if filters.type=='Fire Hazard' %}selected{% endif %}>Fire</option>
+        <option value="Physical Violence" {% if filters.type=='Physical Violence' %}selected{% endif %}>Violence</option>
+    </select>
+</form>
+            </div>
+
+            <!-- 2. Chart Section (Mini) -->
+            {% if chart_data %}
+            <div class="px-3 pt-3 pb-2 border-bottom bg-white">
+                <canvas id="dashboardChart" height="70"></canvas>
+            </div>
+            {% endif %}
+
+            <!-- 3. The Modern Log List -->
+            <div class="log-scroll-area">
+                {% if anomalies %}
+                    {% for anomaly in anomalies %}
+                        
+                        <!-- Filter out low confidence if needed (current: >40%) -->
+                        {% if anomaly.anomaly_score > 0.4 %}
+                        
+                        <!-- Determine Logic for Icon & Severity -->
+                        {% set score_pct = (anomaly.anomaly_score * 100)|int %}
+                        
+                        {% set icon = 'fa-exclamation-triangle' %}
+                        {% set type_clean = anomaly.anomaly_type|lower %}
+                        
+                        <!-- CHANGED: Logic to map objects to "Behaviors" -->
+                        {% set behavior_label = anomaly.anomaly_type %}
+
+                        {% if 'weapon' in type_clean or 'gun' in type_clean or 'knife' in type_clean %}
+                            {% set icon = 'fa-gun' %}
+                            {% set behavior_label = 'Armed Aggression' %}
+                        {% elif 'fire' in type_clean or 'smoke' in type_clean %}
+                            {% set icon = 'fa-fire' %}
+                            {% set behavior_label = 'Fire Hazard' %}
+                        {% elif 'fight' in type_clean or 'violence' in type_clean %}
+                            {% set icon = 'fa-user-ninja' %}
+                            {% set behavior_label = 'Physical Violence' %}
+                        {% elif 'vehicle' in type_clean or 'car' in type_clean or 'crash' in type_clean %}
+                            {% set icon = 'fa-car-crash' %}
+                            {% set behavior_label = 'Vehicle Threat' %}
+                        {% elif 'person' in type_clean %}
+                            {% set icon = 'fa-users' %}
+                            {% set behavior_label = 'Crowd Anomaly' %}
+                        {% endif %}
+
+                        <!-- Severity: Red if > 75% or specific dangerous types -->
+                        {% set is_critical = score_pct > 75 or 'weapon' in type_clean or 'fire' in type_clean or 'fight' in type_clean %}
+                        {% set severity_class = 'severity-high' if is_critical else 'severity-med' %}
+
+                        <!-- Log Item HTML -->
+                        <div class="log-item {{ severity_class }}"
+                             {% if video %}onclick="jumpToAnomalyTime({{ anomaly.frame_timestamp }})"{% else %}onclick="selectCamera('{{ anomaly.video_id }}')"{% endif %}>
+                            
+                            <!-- Icon -->
+                            <div class="log-icon-wrapper">
+                                <i class="fas {{ icon }}"></i>
+                            </div>
+
+                            <!-- Text Content -->
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold text-dark text-capitalize" style="font-size: 0.9rem;">
+                                        {{ behavior_label }}
+                                    </span>
+                                    <span class="badge rounded-pill {% if is_critical %}bg-danger{% else %}bg-warning text-dark{% endif %}" style="font-size: 0.7rem;">
+                                        {{ score_pct }}%
+                                    </span>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="timestamp text-muted small">
+                                        <i class="fas fa-camera me-1"></i> {{ video_map.get(anomaly.video_id, 'CAM-01') }}
+                                    </span>
+                                    <span class="timestamp small">
+                                        <i class="far fa-clock me-1"></i> T-{{ "%.2f"|format(anomaly.frame_timestamp) }}s
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% endif %} <!-- End Confidence Check -->
+                    {% endfor %}
+                {% else %}
+                    <!-- Empty State -->
+                    <div class="text-center py-5 mt-4">
+                        <div class="mb-3 text-muted opacity-25">
+                            <i class="fas fa-clipboard-check fa-4x"></i>
+                        </div>
+                        <h6 class="text-muted fw-bold">No Behavioral Anomalies</h6>
+                        <small class="text-muted">System is monitoring for threats.</small>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Footer -->
+            <div class="p-2 bg-light border-top text-center">
+                <a href="{{ url_for('main.dashboard', clear='true') }}" class="text-decoration-none small text-muted">
+                    <i class="fas fa-sync-alt me-1"></i> Refresh Log Feed
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="alertContainer"></div>
+
+<!-- JAVASCRIPT LOGIC -->
+<!-- In dashboard.html, inside the <script> tag -->
+<script>
+// LIVE CLOCK
+setInterval(() => {
+    document.getElementById('live-clock').innerText = new Date().toLocaleTimeString();
+}, 1000);
+
+// CAMERA SELECTION - Click camera card to view video
+function selectCamera(vidId) {
+    if (vidId) {
+        window.location.href = "/dashboard?video_id=" + vidId;
+    }
+}
+
+// JUMP TO TIMESTAMP
+function jumpToAnomalyTime(timestamp) {
+    const video = document.getElementById('video-player');
+    if (video) {
+        video.currentTime = Math.max(0, timestamp - 2);
+        video.play();
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+    }
+}
+
+// CHART
+document.addEventListener('DOMContentLoaded', function() {});
+    const chartData = {{ chart_data | tojson | safe | default('[]') | safe }} || [];
+    if (chartData && chartData.length > 0) {
+        const ctx = document.getElementById('dashboardChart')?.getContext('2d');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(d => d.day),
+                    datasets: [{
+                        label: 'Incidents',
+                        data: chartData.map(d => d.count),
+                        backgroundColor: '#0d6efd',
+                        borderRadius: 4,
+                        barThickness: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, display: false },
+                        x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+    }
+
+    // VIDEO PLAYER - auto load if video selected
+    const videoEl = document.getElementById('video-player');
+    if (videoEl) {
+        videoEl.load();
+        console.log("Video source: " + videoEl.querySelector('source')?.src);
+    }
+</script>
+
+{% endblock %}

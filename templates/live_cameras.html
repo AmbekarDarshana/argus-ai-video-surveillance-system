@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="mb-3">
+        <a href="/dashboard" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- LEFT: Video Feed -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <h5 class="mb-0">
+                        <i class="fas fa-video me-2"></i>Webcam Stream
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button id="startBtn" class="btn btn-sm btn-success" onclick="startStream()">
+                            <i class="fas fa-play me-1"></i>Start
+                        </button>
+                        <button id="stopBtn" class="btn btn-sm btn-danger" onclick="stopStream()" disabled>
+                            <i class="fas fa-stop me-1"></i>Stop
+                        </button>
+                        <div class="vr bg-secondary mx-1"></div>
+                        <button id="recordBtn" class="btn btn-sm btn-outline-danger" onclick="startRecording()" disabled>
+                            <i class="fas fa-circle me-1"></i>Record
+                        </button>
+                        <button id="stopRecordBtn" class="btn btn-sm btn-warning" onclick="stopRecording()" style="display:none;">
+                            <i class="fas fa-stop me-1"></i>Stop Rec
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-0 bg-black text-center position-relative" style="height: 480px;">
+                    <img id="video-stream" src="" style="width: 100%; height: 100%; object-fit: contain; display: none;">
+                    <div id="offline-msg" class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div>
+                            <i class="fas fa-video-slash fa-3x mb-3"></i>
+                            <h5>Camera Offline</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recording Status Bar -->
+                <div id="recording-status" class="card-footer bg-dark text-white py-2" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-danger fw-bold">
+                                <i class="fas fa-circle blink me-1"></i> RECORDING
+                            </span>
+                            <span id="rec-frame-count" class="ms-3 text-muted small">Frames: 0</span>
+                        </div>
+                        <span id="rec-duration" class="text-muted small">00:00:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Progress (hidden by default) -->
+            <div id="processing-card" class="card mt-3 border-primary" style="display: none;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border text-primary me-3" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold" id="processing-title">Processing...</h6>
+                            <p class="mb-0 text-muted small" id="processing-msg">AI is analyzing your recording. This may take a few minutes...</p>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Status + Recording History -->
+        <div class="col-lg-4">
+            <!-- Status Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-1"></i> Status
+                </div>
+                <div class="card-body">
+                    <div id="status-online" class="alert alert-success mb-2 py-2" style="display:none;">
+                        <i class="fas fa-check-circle"></i> Camera Online
+                    </div>
+                    <div id="status-offline" class="alert alert-secondary mb-2 py-2">
+                        <i class="fas fa-power-off"></i> Camera Offline
+                    </div>
+                    <div id="status-recording" class="alert alert-danger mb-2 py-2" style="display:none;">
+                        <i class="fas fa-circle blink"></i> Recording Active
+                    </div>
+                    <p class="small text-muted mb-0">
+                        AI runs every 3rd frame for detection.<br>
+                        Recordings are saved and can be analyzed with full AI pipeline.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Recording History Card -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history me-1"></i> Recordings</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshRecordings()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="recordings-list" class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                        {% if recordings %}
+                            {% for rec in recordings %}
+                            <div class="list-group-item small" id="rec-{{ rec._id }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-file-video text-primary me-1"></i>
+                                        <strong>{{ rec.start_time.strftime('%m/%d %H:%M') if rec.start_time else 'N/A' }}</strong>
+                                    </div>
+                                    {% if rec.status == 'completed' %}
+                                        <span class="badge bg-success">Done</span>
+                                    {% elif rec.status == 'recording' %}
+                                        <span class="badge bg-danger">Recording</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{{ rec.status }}</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="text-muted mt-1" style="font-size: 0.7rem;">
+                                    {{ "%.0f"|format(rec.duration_seconds) if rec.duration_seconds else '-' }}s
+                                    | {{ rec.frame_count }} frames
+                                    | {{ rec.anomalies_during_recording }} alerts
+                                    {% if rec.file_size_bytes %}
+                                        | {{ "%.1f"|format(rec.file_size_bytes / 1048576) }}MB
+                                    {% endif %}
+                                </div>
+
+                                <!-- Action Buttons -->
+                                {% if rec.status == 'completed' %}
+                                <div class="mt-2 d-flex gap-1">
+                                    {% if rec.video_id %}
+                                        <!-- Already uploaded - View on Dashboard -->
+                                        <a href="/dashboard?video_id={{ rec.video_id }}" 
+                                           class="btn btn-sm btn-primary flex-fill">
+                                            <i class="fas fa-eye me-1"></i> View Results
+                                        </a>
+                                    {% else %}
+                                        <!-- Not yet uploaded - Show Analyze button -->
+                                        <button class="btn btn-sm btn-success flex-fill" 
+                                                onclick="uploadAndAnalyze('{{ rec._id }}')"
+                                                id="analyze-btn-{{ rec._id }}">
+                                            <i class="fas fa-robot me-1"></i> Analyze with AI
+                                        </button>
+                                    {% endif %}
+
+                                    <a href="/{{ rec.filename }}" 
+                                       class="btn btn-sm btn-outline-secondary" 
+                                       download title="Download">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="list-group-item text-center text-muted py-4">
+                                <i class="fas fa-film fa-2x mb-2 opacity-25"></i>
+                                <p class="mb-0 small">No recordings yet.<br>Start camera and click Record.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .blink { animation: blinker 1s linear infinite; }
+    @keyframes blinker { 50% { opacity: 0; } }
+</style>
+
+<script>
+    let recordingTimer = null;
+    let recordingStartTime = null;
+    let lastRecordingId = null;
+
+    // =============== CAMERA CONTROLS ===============
+    function startStream() {
+        fetch('/live/api/start', { method: 'POST' })
+        .then(() => {
+            document.getElementById('video-stream').src = "/live/video_feed?t=" + Date.now();
+            document.getElementById('video-stream').style.display = 'block';
+            document.getElementById('offline-msg').style.display = 'none';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('recordBtn').disabled = false;
+            document.getElementById('status-online').style.display = 'block';
+            document.getElementById('status-offline').style.display = 'none';
+        });
+    }
+
+    function stopStream() {
+        if (document.getElementById('stopRecordBtn').style.display !== 'none') {
+            stopRecording();
+        }
+        fetch('/live/api/stop', { method: 'POST' })
+        .then(() => {
+            document.getElementById('video-stream').src = "";
+            document.getElementById('video-stream').style.display = 'none';
+            document.getElementById('offline-msg').style.display = 'flex';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('recordBtn').disabled = true;
+            document.getElementById('status-online').style.display = 'none';
+            document.getElementById('status-offline').style.display = 'block';
+        });
+    }
+
+    // =============== RECORDING CONTROLS ===============
+    function startRecording() {
+        fetch('/live/api/record/start', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { alert('Error: ' + data.error); return; }
+
+            lastRecordingId = data.recording_id;
+            document.getElementById('recordBtn').style.display = 'none';
+            document.getElementById('stopRecordBtn').style.display = 'inline-block';
+            document.getElementById('recording-status').style.display = 'block';
+            document.getElementById('status-recording').style.display = 'block';
+
+            recordingStartTime = Date.now();
+            recordingTimer = setInterval(updateRecordingTimer, 1000);
+        })
+        .catch(err => alert('Error: ' + err));
+    }
+
+    function stopRecording() {
+        fetch('/live/api/record/stop', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { alert('Error: ' + data.error); return; }
+
+            document.getElementById('recordBtn').style.display = 'inline-block';
+            document.getElementById('stopRecordBtn').style.display = 'none';
+            document.getElementById('recording-status').style.display = 'none';
+            document.getElementById('status-recording').style.display = 'none';
+
+            if (recordingTimer) { clearInterval(recordingTimer); recordingTimer = null; }
+
+            lastRecordingId = data.recording_id;
+
+            // Ask user what to do
+            showPostRecordingDialog(data);
+        })
+        .catch(err => alert('Error: ' + err));
+    }
+
+    function showPostRecordingDialog(data) {
+        let action = confirm(
+            `Recording saved!\n` +
+            `Frames: ${data.total_frames}\n\n` +
+            `Click OK to upload & analyze with AI detection.\n` +
+            `Click Cancel to just save the recording.`
+        );
+
+        if (action) {
+            uploadAndAnalyze(data.recording_id);
+        } else {
+            refreshRecordings();
+        }
+    }
+
+    // =============== UPLOAD & ANALYZE ===============
+  function uploadAndAnalyze(recordingId) {
+    let processingCard = document.getElementById('processing-card');
+    processingCard.style.display = 'block';
+    document.getElementById('processing-title').textContent = 'Uploading & Analyzing Recording...';
+    document.getElementById('processing-msg').textContent = 
+        'Copying video and running AI detection... This may take 1-3 minutes.';
+
+    let btn = document.getElementById('analyze-btn-' + recordingId);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+    }
+
+    fetch('/live/api/record/upload_and_process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recording_id: recordingId })
+    })
+    .then(res => {
+        // === FIX: Check if response is actually JSON ===
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned HTML instead of JSON. You may need to login again.');
+        }
+        return res.json();
+    })
+    .then(data => {
+        processingCard.style.display = 'none';
+
+        if (data.error) {
+            alert('Error: ' + data.error);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-robot me-1"></i> Analyze with AI';
+            }
+            return;
+        }
+
+        alert(
+            'Analysis Complete!\n\n' +
+            'Anomalies Found: ' + data.anomalies_found + '\n\n' +
+            'Redirecting to dashboard...'
+        );
+
+        window.location.href = data.dashboard_url;
+    })
+    .catch(err => {
+        processingCard.style.display = 'none';
+        alert('Error: ' + err.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-robot me-1"></i> Analyze with AI';
+        }
+    });
+}
+    function updateRecordingTimer() {
+        if (!recordingStartTime) return;
+        let elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        let hours = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+        let mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+        let secs = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('rec-duration').textContent = `${hours}:${mins}:${secs}`;
+
+        fetch('/live/api/record/status')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('rec-frame-count').textContent = 'Frames: ' + data.frame_count;
+        }).catch(() => {});
+    }
+
+    function refreshRecordings() {
+        // Simply reload the page to get fresh data
+        window.location.reload();
+    }
+</script>
+{% endblock %}

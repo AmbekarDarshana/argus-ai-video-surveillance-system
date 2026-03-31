@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Video Playback</h1>
+
+{% if summary %}
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="d-flex gap-3 align-items-center">
+            <div class="badge bg-primary p-2">Today: <strong>{{ summary.today }}</strong> anomalies</div>
+            <div class="badge bg-info text-dark p-2">This week: <strong>{{ summary.week }}</strong></div>
+            <div class="badge bg-success p-2">Cameras: <strong>{{ summary.cameras }}</strong> active</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5>{{ video.location }} - {{ video.resolution }}</h5>
+                <p class="mb-0"><strong>{{ anomalies|length }} anomalies detected</strong></p>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <!-- controls attribute provides fallback even if JS fails -->
+            <video id="video-player" class="video-player" width="100%" height="auto" controls preload="metadata">
+                <source src="{{ video_url }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <canvas id="anomaly-overlay" class="anomaly-overlay"></canvas>
+        </div>
+
+        <!-- Anomaly Timeline -->
+        <div id="anomaly-timeline" class="anomaly-timeline"></div>
+
+        <!-- Video Controls -->
+        <div class="video-controls">
+            <button id="prev-anomaly" class="btn btn-secondary">Previous</button>
+            <button id="next-anomaly" class="btn btn-info">Next Anomaly</button>
+            <button id="play-pause-btn" class="btn btn-success">Play</button>
+            <button id="skip-to-first" class="btn btn-warning">First Anomaly</button>
+            <a href="/dashboard" class="btn btn-outline-secondary">Back to List</a>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <h3>Anomalies ({{ anomalies|length }} total)</h3>
+        <!-- minimal filter form similar to event logs -->
+        <form id="dashboard-filter" class="row g-2 mb-2" method="get" action="">
+            <div class="col-auto">
+                <select id="dashType" name="type" class="form-select form-select-sm">
+                    <option value="">Type</option>
+                    {% for t in ['person','vehicle','crowd','other'] %}
+                    <option value="{{ t }}" {% if filters.type==t %}selected{% endif %}>{{ t.capitalize() }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select id="dashCam" name="camera" class="form-select form-select-sm">
+                    <option value="">Camera</option>
+                    {% for vid, name in video_map.items() %}
+                    <option value="{{ vid }}" {% if filters.camera==vid %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="date" name="start" class="form-control form-control-sm" placeholder="From" value="{{ filters.start or '' }}">
+            </div>
+            <div class="col-auto">
+                <input type="date" name="end" class="form-control form-control-sm" placeholder="To" value="{{ filters.end or '' }}">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary">Filter</button>
+            </div>
+        </form>
+
+        {% if chart_data %}
+        <canvas id="dashboardChart" height="100" class="mb-3"></canvas>
+        {% endif %}
+        <div class="list-group" style="max-height: 600px; overflow-y: auto;">
+            {% for anomaly in anomalies %}
+            <div class="list-group-item" data-timestamp="{{ anomaly.frame_timestamp }}" onclick="jumpToAnomalyTime({{ anomaly.frame_timestamp }})">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ anomaly.anomaly_type|capitalize }}</h6>
+                    <small class="text-danger">Score: {{ anomaly.anomaly_score }}</small>
+                </div>
+                <p class="mb-1">
+                    <small><strong>Camera:</strong> {{ video_map.get(anomaly.video_id, anomaly.video_id[:8]+'...') }}</small><br>
+                    <small><strong>Time:</strong> {{ "%.1f"|format(anomaly.frame_timestamp) }}s</small><br>
+                    {% if anomaly.objects_detected %}
+                    <small><strong>Objects:</strong> {{ anomaly.objects_detected|join(', ') }}</small>
+                    {% endif %}
+                </p>
+                <small class="text-muted">{{ anomaly.description }}</small>
+            </div>
+            {% else %}
+            <div class="list-group-item text-muted">No anomalies detected yet</div>
+            {% endfor %}
+        </div>
+
+        {% if role in ['admin', 'operator'] %}
+        <hr>
+        <button onclick="simulateProcess()" class="btn btn-warning w-100 mt-3">⚡ Process with AI</button>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// video playback initialization (almost same as dashboard script but no selection handling)
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Play page loaded');
+    const anomalies = {{ anomalies | tojson | safe }};
+    const videoPath = '{{ video_url if video_url else "" }}';
+
+    if (videoPath) {
+        if (typeof loadVideoPlayer === 'function') {
+            loadVideoPlayer(videoPath, anomalies);
+        } else {
+            console.error('loadVideoPlayer not found!');
+        }
+    }
+});
+
+window.simulateProcess = function() {
+    if (!confirm('Process the first video with AI? This may take several minutes.')) return;
+    fetch('/anomaly/trigger_process', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.status || data.error || 'Completed');
+            location.reload();
+        })
+        .catch(err => alert('Error: ' + err));
+};
+</script>
+
+{% if chart_data %}
+<!-- chart.js same as dashboard -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('dashboardChart')?.getContext('2d');
+        if (ctx) {
+            const data = {{ chart_data | tojson | safe }};
+            const labels = data.map(d => d.day);
+            const counts = data.map(d => d.count);
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Anomalies per day',
+                        data: counts,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { title: { display: true, text: 'Date' } }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endif %}
+
+{% endblock %}

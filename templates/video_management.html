@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Include FontAwesome for Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-video text-primary"></i> Video Management</h1>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="fas fa-upload"></i> Upload Video
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Location</th>
+                        <th>Path</th>
+                        <th>Resolution</th>
+                        <th>Status</th>
+                        <th>Anomalies</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for video in videos %}
+                    <tr>
+                        <td class="fw-bold">{{ video.location }}</td>
+                        <td class="text-muted small">{{ video.file_path }}</td>
+                        <td><span class="badge bg-secondary">{{ video.resolution }}</span></td>
+                        <td>
+                            {% if video.status == 'processed' %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i> Processed</span>
+                            {% elif video.status == 'error' %}
+                                <span class="badge bg-danger"><i class="fas fa-times"></i> Error</span>
+                            {% elif video.status == 'processing' %}
+                                <span class="badge bg-info text-white"><i class="fas fa-spinner fa-spin"></i> Processing</span>
+                            {% else %}
+                                {# THIS CATCHES: unprocessed, uploaded, or any other status #}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> {{ video.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set count = anomalies|selectattr('video_id', 'equalto', video._id)|list|length if anomalies else 0 %}
+                            {% if count > 0 %}
+                                <span class="badge bg-danger rounded-pill">{{ count }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {# ===== FIX: Show Process button for BOTH 'unprocessed' AND 'uploaded' ===== #}
+                            {% if video.status in ['unprocessed', 'uploaded'] %}
+                                <form method="POST" action="{{ url_for('video.process_video_route', video_id=video._id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-primary btn-sm" title="Run AI">
+                                        <i class="fas fa-robot"></i> Process
+                                    </button>
+                                </form>
+                            {% endif %}
+
+                            {# Re-process for processed/error #}
+                            {% if video.status in ['processed', 'error'] %}
+                                <form method="POST" action="{{ url_for('video.reprocess_video_route', video_id=video._id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-warning btn-sm" title="Run AI Again">
+                                        <i class="fas fa-sync-alt"></i> Retry
+                                    </button>
+                                </form>
+                            {% endif %}
+
+                            {# View button #}
+                            <a href="/dashboard?video_id={{ video._id }}" class="btn btn-info btn-sm text-white" title="View Dashboard">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+
+                            {# Delete button #}
+                            <a href="{{ url_for('video.delete_video', video_id=video._id) }}"
+                               class="btn btn-danger btn-sm"
+                               onclick="return confirm('Are you sure? This will delete the video and ALL its detection logs.');"
+                               title="Delete Video">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="fas fa-film fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No videos uploaded yet.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('video.add_video') }}" enctype="multipart/form-data">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-cloud-upload-alt"></i> Upload Video</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Location Name</label>
+                        <input type="text" name="location" class="form-control" placeholder="e.g. Entrance Hall" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Resolution / Note</label>
+                        <input type="text" name="resolution" class="form-control" placeholder="e.g. 1080p CCTV" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Video File</label>
+                        <input type="file" name="file" class="form-control" accept="video/*" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload & Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
