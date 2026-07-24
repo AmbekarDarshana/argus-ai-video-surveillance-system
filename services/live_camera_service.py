@@ -174,100 +174,133 @@ class LiveCameraProcessor(threading.Thread):
     """
     Main live camera processing thread
     Reads frames, runs detection, stores results
+
+    FIXED: __init__, run(), and stop() were previously sitting at module
+    level (not indented inside this class), so LiveCameraProcessor had no
+    working constructor or run loop of its own - it silently fell back to
+    threading.Thread's defaults, meaning no RTSP camera ever actually
+    processed a frame, and calling .stop() raised AttributeError.
     """
-    
-# In live_camera_service.py -> LiveCameraProcessor class
 
-def __init__(self, camera_id: str, stream_reader: RTSPStreamReader):
-    super().__init__(daemon=True)
-    self.camera_id = camera_id
-    self.stream_reader = stream_reader
-    self.yolo_detector = None
-    self.classifier = None
-    self.buffer = StreamBuffer()
-    self.running = False
-    self.frame_skip = 2
-    self.frame_count = 0
-    self.start_time = time.time()
-    # ADD THIS LINE - track previous detections for fight detection
-    self.prev_detections = []
-
-def run(self):
-    """Main processing loop"""
-    logger.info(f"Starting live processor for camera {self.camera_id}")
-    self.running = True
-
-    self._init_detectors()
-
-    if not self.stream_reader.connect():
-        logger.error(f"Failed to start stream for camera {self.camera_id}")
+    def __init__(self, camera_id: str, stream_reader: RTSPStreamReader):
+        super().__init__(daemon=True)
+        self.camera_id = camera_id
+        self.stream_reader = stream_reader
+        self.yolo_detector = None
+        self.classifier = None
+        self.buffer = StreamBuffer()
         self.running = False
-        return
+        self.frame_skip = 2
+        self.frame_count = 0
+        self.start_time = time.time()
+        # track previous detections for fight detection
+        self.prev_detections = []
 
-    frame_times = []
-    alert_cooldowns = {}  # ADD: cooldown tracking
+    def _init_detectors(self):
+        """Lazily initialize the shared YOLO detector + classifier."""
+        self.yolo_detector, self.classifier = get_detector()
 
-    while self.running:
+    def run(self):
+        """Main processing loop"""
+        logger.info(f"Starting live processor for camera {self.camera_id}")
+        self.running = True
+
+        self._init_detectors()
+
+        if not self.stream_reader.connect():
+            logger.error(f"Failed to start stream for camera {self.camera_id}")
+            self.running = False
+            return
+
+        frame_times = []
+        alert_cooldowns = {}
+
+        while self.running:
+            try:
+                frame = self.stream_reader.read_frame()
+                if frame is None:
+                    logger.warning(f"Stream lost for camera {self.camera_id}, attempting reconnect...")
+                    if self.stream_reader.connect():
+                        continue
+                    else:
+                        break
+
+                self.frame_count += 1
+                self.buffer.add_frame(frame)
+
+                if self.frame_count % self.frame_skip != 0:
+                    continue
+
+                current_time = time.time()
+
+                raw_detections = self.yolo_detector.detect(frame)
+                detections = [d for d in raw_detections if d.confidence > 0.40]
+
+                anomalies = self.classifier.classify(
+                    detections,            # List[Detection] objects
+                    current_time,          # float timestamp
+                    self.prev_detections   # previous frame's detections
+                )
+
+                # Filter and store with cooldown
+                valid_anomalies = []
+                for anomaly in anomalies:
+                    if anomaly.score < 0.60:
+                        continue
+
+                    last_alert = alert_cooldowns.get(anomaly.type, 0)
+                    if (current_time - last_alert) < 5.0:
+                        continue
+                    alert_cooldowns[anomaly.type] = current_time
+
+                    self._store_anomaly(frame, anomaly, detections)
+                    valid_anomalies.append(anomaly)
+
+                self.buffer.update_detections(detections, valid_anomalies)
+
+                # UPDATE previous detections for next frame
+                self.prev_detections = detections
+
+                # Calculate FPS
+                frame_times.append(current_time)
+                if len(frame_times) > 30:
+                    frame_times.pop(0)
+                if len(frame_times) > 1:
+                    self.buffer.fps = len(frame_times) / (frame_times[-1] - frame_times[0])
+
+            except Exception as e:
+                logger.error(f"Error in processing loop: {e}", exc_info=True)
+                time.sleep(1)
+
+        self.stream_reader.disconnect()
+        logger.info(f"Stopped live processor for camera {self.camera_id}")
+
+    def _store_anomaly(self, frame, anomaly, detections):
+        """Persist a detected anomaly for this live camera."""
         try:
-            frame = self.stream_reader.read_frame()
-            if frame is None:
-                logger.warning(f"Stream lost for camera {self.camera_id}, attempting reconnect...")
-                if self.stream_reader.connect():
-                    continue
-                else:
-                    break
-
-            self.frame_count += 1
-            self.buffer.add_frame(frame)
-
-            if self.frame_count % self.frame_skip != 0:
-                continue
-
-            current_time = time.time()
-
-            # --- FIXED DETECTION LOGIC ---
-            raw_detections = self.yolo_detector.detect(frame)
-            detections = [d for d in raw_detections if d.confidence > 0.40]
-
-            # FIXED: Pass correct arguments to classify()
-            anomalies = self.classifier.classify(
-                detections,        # List[Detection] objects, NOT strings
-                current_time,      # float timestamp, NOT a frame
-                self.prev_detections  # previous frame's detections
-            )
-
-            # Filter and store with cooldown
-            valid_anomalies = []
-            for anomaly in anomalies:
-                if anomaly.score < 0.60:
-                    continue
-
-                last_alert = alert_cooldowns.get(anomaly.type, 0)
-                if (current_time - last_alert) < 5.0:
-                    continue
-                alert_cooldowns[anomaly.type] = current_time
-
-                self._store_anomaly(frame, anomaly, detections)
-                valid_anomalies.append(anomaly)
-
-            self.buffer.update_detections(detections, valid_anomalies)
-
-            # UPDATE previous detections for next frame
-            self.prev_detections = detections
-
-            # Calculate FPS
-            frame_times.append(current_time)
-            if len(frame_times) > 30:
-                frame_times.pop(0)
-            if len(frame_times) > 1:
-                self.buffer.fps = len(frame_times) / (frame_times[-1] - frame_times[0])
-
+            db = get_db()
+            anomaly_data = {
+                "video_id": self.camera_id,
+                "anomaly_type": anomaly.type,
+                "anomaly_score": round(anomaly.score, 2),
+                "description": f"Live Camera: {anomaly.description}",
+                "objects_detected": anomaly.objects,
+                "detection_count": len(detections),
+                "created_at": datetime.now(),
+                "detection_time": datetime.now(),
+                "is_live": True
+            }
+            if db:
+                db.anomalies.insert_one(anomaly_data)
+            logger.warning(f"LIVE ALERT [{self.camera_id}]: {anomaly.type.upper()}")
         except Exception as e:
-            logger.error(f"Error in processing loop: {e}", exc_info=True)
-            time.sleep(1)
+            logger.error(f"Failed to store live anomaly: {e}")
 
-    self.stream_reader.disconnect()
-    logger.info(f"Stopped live processor for camera {self.camera_id}")
+    def stop(self):
+        """Signal the processing loop to stop and wait for the thread to exit."""
+        self.running = False
+        if self.is_alive():
+            self.join(timeout=5)
 
 
 class LiveCameraManager:

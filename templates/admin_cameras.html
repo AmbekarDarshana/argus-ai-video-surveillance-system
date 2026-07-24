@@ -132,14 +132,14 @@
 
                             <!-- Toggle Status -->
                             {% if cam.status == 'active' %}
-                            <form method="POST" action="{{ url_for('admin.toggle_camera', camera_id=cam._id) }}" style="display:inline;">
+                            <form method="POST" action="{{ url_for('features.toggle_camera_route', camera_id=cam._id) }}" style="display:inline;">
                                 <input type="hidden" name="status" value="offline">
                                 <button type="submit" class="btn btn-sm btn-outline-warning" title="Set Offline">
                                     <i class="fas fa-power-off"></i>
                                 </button>
                             </form>
                             {% else %}
-                            <form method="POST" action="{{ url_for('admin.toggle_camera', camera_id=cam._id) }}" style="display:inline;">
+                            <form method="POST" action="{{ url_for('features.toggle_camera_route', camera_id=cam._id) }}" style="display:inline;">
                                 <input type="hidden" name="status" value="active">
                                 <button type="submit" class="btn btn-sm btn-outline-success" title="Set Active">
                                     <i class="fas fa-power-off"></i>
@@ -148,7 +148,7 @@
                             {% endif %}
 
                             <!-- Delete -->
-                            <form method="POST" action="{{ url_for('admin.delete_camera', camera_id=cam._id) }}" style="display:inline;">
+                            <form method="POST" action="{{ url_for('features.delete_camera_route', camera_id=cam._id) }}" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" 
                                         onclick="return confirm('Delete this camera?');" title="Delete">
                                     <i class="fas fa-trash"></i>
@@ -161,7 +161,7 @@
                     <div class="modal fade" id="assignModal{{ cam._id }}" tabindex="-1">
                         <div class="modal-dialog modal-sm">
                             <div class="modal-content">
-                                <form method="POST" action="{{ url_for('admin.assign_camera') }}">
+                                <form method="POST" action="{{ url_for('features.assign_camera') }}">
                                     <input type="hidden" name="camera_id" value="{{ cam._id }}">
                                     <div class="modal-header bg-primary text-white">
                                         <h6 class="modal-title">Assign Camera</h6>
@@ -210,7 +210,7 @@
 <div class="modal fade" id="addCameraModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST" action="{{ url_for('admin.add_camera') }}">
+            <form method="POST" action="{{ url_for('features.create_new_camera') }}">
                 <div class="modal-header bg-success text-white">
                     <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i> Add New Camera</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

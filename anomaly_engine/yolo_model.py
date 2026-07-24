@@ -20,20 +20,27 @@ class YOLODetector:
         try:
             self.model = YOLO(self.model_path)
             
-            # Standard COCO mappings to ensure names match your logic
+            # --- FIXED: correct standard COCO class-index -> name mapping ---
+            # Previous version had indices 15-24 shifted by one and
+            # suitcase/backpack swapped, which silently mislabeled every
+            # animal detection (e.g. real cats were logged as "dog").
+            # Reference order (0-indexed), matches ultralytics coco.yaml:
+            # 14 bird, 15 cat, 16 dog, 17 horse, 18 sheep, 19 cow,
+            # 20 elephant, 21 bear, 22 zebra, 23 giraffe, 24 backpack,
+            # 26 handbag, 28 suitcase, 34 baseball bat, 39 bottle,
+            # 43 knife, 44 spoon, 46 banana
             self.extended_classes = {
                 0: 'person',
                 # Vehicles
                 1: 'bicycle', 2: 'car', 3: 'motorcycle', 5: 'bus', 7: 'truck',
                 # Animals
-                15: 'dog', 16: 'horse', 17: 'sheep', 18: 'cow',
-                19: 'elephant', 20: 'bear', 21: 'zebra', 22: 'giraffe',
-                23: 'cat', 24: 'bird',
-                # Suspicious objects
-                26: 'handbag', 27: 'suitcase', 28: 'backpack',
+                14: 'bird', 15: 'cat', 16: 'dog', 17: 'horse', 18: 'sheep',
+                19: 'cow', 20: 'elephant', 21: 'bear', 22: 'zebra', 23: 'giraffe',
+                # Suspicious/carryable objects
+                24: 'backpack', 26: 'handbag', 28: 'suitcase',
                 # Potential weapons / dangerous items
-                39: 'bottle', 43: 'knife', 44: 'spoon', 
-                34: 'baseball bat', 46: 'banana' # sometimes banana is tested as false positive
+                39: 'bottle', 43: 'knife', 44: 'spoon',
+                34: 'baseball bat', 46: 'banana'  # banana kept as a known false-positive check
             }
             
             # Force update names in model to match our expected strings

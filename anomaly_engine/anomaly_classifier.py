@@ -29,7 +29,7 @@ class AnomalyClassifier:
     def __init__(self) -> None:
         self.frame_counter = 0
 
-        # ADD: Track how many consecutive frames a person has been seen
+        # Track how many consecutive frames a person has been seen
         self.person_presence_count = 0
         self.LOITERING_THRESHOLD = 15  # Must see person for 15+ frames (~3 seconds at 5fps)
 
@@ -62,13 +62,23 @@ class AnomalyClassifier:
 
         return anomalies
 
-    def _detect_intrusion(self, counts, detections):
+    # ------------------------------------------------------------------
+    # RULES
+    # ------------------------------------------------------------------
+
+    def _detect_intrusion(self, counts: Counter, detections: List[Detection]) -> List[Anomaly]:
+        """
+        FIXED (was previously defined twice - the second, no-threshold
+        version was silently overriding this one, so every single-frame
+        person sighting fired a "loitering" alert with no time requirement).
+        Only trigger after a person has been present for multiple
+        consecutive frames, so someone just walking past the camera
+        doesn't count as loitering.
+        """
         n = counts.get(self.PERSON, 0)
         if n == 0:
             return []
 
-        # FIXED: Only trigger after person has been present for multiple frames
-        # This prevents "person walked past camera" from being an alert
         if self.person_presence_count < self.LOITERING_THRESHOLD:
             return []
 
@@ -81,25 +91,6 @@ class AnomalyClassifier:
             type="Suspicious Loitering",
             score=min(0.99, score),
             description=f"{n} person(s) loitering for extended period",
-            objects=[self.PERSON] * n,
-        )]
-
-    # ------------------------------------------------------------------
-    # RULES
-    # ------------------------------------------------------------------
-
-    def _detect_intrusion(self, counts: Counter, detections: List[Detection]) -> List[Anomaly]:
-        n = counts.get(self.PERSON, 0)
-        if n == 0: return []
-        
-        max_conf = self._get_max_confidence(detections, self.PERSON)
-        score = max_conf 
-        if n > 1: score += 0.1
-        
-        return [Anomaly(
-            type="Suspicious Loitering", # Behavior Name,
-            score=min(0.99, score),
-            description=f"{n} person(s) detected in area",
             objects=[self.PERSON] * n,
         )]
 
@@ -152,7 +143,6 @@ class AnomalyClassifier:
         is_grappling = False
         for i in range(len(people)):
             for j in range(i + 1, len(people)):
-                # THIS IS THE FUNCTION THAT WAS MISSING BEFORE
                 overlap = self._bbox_overlap(people[i].bbox, people[j].bbox)
                 if overlap > 0.30: # 30% overlap means they are very close
                     is_grappling = True
@@ -215,7 +205,6 @@ class AnomalyClassifier:
                 return True
         return False
 
-    # THIS IS THE MISSING FUNCTION THAT CAUSED THE ERROR
     def _bbox_overlap(self, bbox1: Tuple[int, int, int, int], bbox2: Tuple[int, int, int, int]) -> float:
         """Calculates Intersection over Union (IoU) ratio between two boxes."""
         x1, y1, w1, h1 = bbox1

@@ -159,7 +159,7 @@ def api_keys():
 
 
 @bp.route('/api-keys/create', methods=['POST'])
-def create_new_api_key():   # RENAMED route function
+def create_new_api_key():
     """Create a new API key."""
     if 'user' not in session:
         return redirect(url_for('auth.login'))
@@ -168,7 +168,6 @@ def create_new_api_key():   # RENAMED route function
     name = request.form.get('name', 'New Key')
 
     try:
-        # FIXED: Call the MODEL function, not itself
         key = model_create_api_key(current_app.db, user_id, name)
         flash(f'API key created! Save it: {key["key"]}', 'success')
     except Exception as e:
@@ -178,13 +177,12 @@ def create_new_api_key():   # RENAMED route function
 
 
 @bp.route('/api-keys/<key_id>/delete', methods=['POST'])
-def remove_api_key(key_id):   # RENAMED route function
+def remove_api_key(key_id):
     """Delete an API key."""
     if 'user' not in session:
         return redirect(url_for('auth.login'))
 
     try:
-        # FIXED: Call the MODEL function
         model_delete_api_key(current_app.db, key_id)
         flash('API key deleted', 'success')
     except Exception as e:
@@ -194,6 +192,10 @@ def remove_api_key(key_id):   # RENAMED route function
 
 
 # ============= CAMERA MANAGEMENT (ADMIN) =============
+# NOTE: these overlap with routes/admin.py's camera routes (both end up
+# registering paths under /admin/cameras). See the message alongside this
+# file for the two options to resolve that - this file only fixes the
+# NameError crashes below for now.
 
 @bp.route('/admin/cameras')
 def manage_cameras():
@@ -222,7 +224,9 @@ def assign_camera():
     owner_id = request.form.get('owner_id')
     
     try:
-        model_update_camera(current_app.db, camera_id, {'owner_id': owner_id})
+        # FIXED: was calling undefined `model_update_camera` - the actual
+        # imported name (see imports above) is `update_camera`.
+        update_camera(current_app.db, camera_id, {'owner_id': owner_id})
         flash('✅ Camera assigned!', 'success')
     except Exception as e:
         flash(f'❌ Error: {str(e)}', 'danger')
@@ -239,15 +243,53 @@ def create_new_camera():
     camera_data = {
         'name': request.form.get('name'),
         'location': request.form.get('location'),
-        'owner_id': request.form.get('owner_id'),
+        'owner_id': request.form.get('owner_id') or None,
         'resolution': request.form.get('resolution', '1920x1080'),
+        'rtsp_url': request.form.get('rtsp_url', ''),
         'status': 'active'
     }
     
     try:
-        create_camera(current_app.db, camera_data)
+        # FIXED: was calling undefined `create_camera` - the actual
+        # imported name (see imports above) is `model_create_camera`.
+        model_create_camera(current_app.db, camera_data)
         flash('✅ Camera created!', 'success')
     except Exception as e:
         flash(f'❌ Error: {str(e)}', 'danger')
     
+    return redirect(url_for('features.manage_cameras'))
+
+
+@bp.route('/admin/cameras/toggle/<camera_id>', methods=['POST'])
+def toggle_camera_route(camera_id):
+    """Admin: toggle a camera's active/offline status.
+    (Restored here from the old admin.py duplicate, now using the
+    models/camera.py update_camera function for consistency.)"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return redirect(url_for('auth.login'))
+
+    new_status = request.form.get('status', 'active')
+
+    try:
+        update_camera(current_app.db, camera_id, {'status': new_status})
+        flash(f'Camera set to {new_status}', 'success')
+    except Exception as e:
+        flash(f'❌ Error: {str(e)}', 'danger')
+
+    return redirect(url_for('features.manage_cameras'))
+
+
+@bp.route('/admin/cameras/delete/<camera_id>', methods=['POST'])
+def delete_camera_route(camera_id):
+    """Admin: delete a camera.
+    (Restored here from the old admin.py duplicate.)"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return redirect(url_for('auth.login'))
+
+    try:
+        delete_camera(current_app.db, camera_id)
+        flash('Camera deleted.', 'success')
+    except Exception as e:
+        flash(f'❌ Error: {str(e)}', 'danger')
+
     return redirect(url_for('features.manage_cameras'))

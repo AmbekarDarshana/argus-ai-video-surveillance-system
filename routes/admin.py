@@ -95,124 +95,20 @@ def config():
 
 
 # ============= CAMERA MANAGEMENT =============
-
-@bp.route('/cameras')
-def config_panel():
-    """Admin camera management page."""
-    if 'user' not in session or session.get('role') != 'admin':
-        return redirect(url_for('auth.login'))
-
-    db = current_app.db
-
-    # Get all cameras from cameras collection
-    cameras = list(db.cameras.find({}))
-    for c in cameras:
-        c['_id'] = str(c['_id'])
-        # Lookup owner email
-        if c.get('owner_id'):
-            try:
-                owner = db.users.find_one({'_id': ObjectId(c['owner_id'])})
-                c['owner_email'] = owner.get('email', '') if owner else ''
-            except:
-                c['owner_email'] = ''
-
-    # Get all users for assignment dropdown
-    users = list(db.users.find({}, {'email': 1, 'role': 1, '_id': 1}))
-    for u in users:
-        u['_id'] = str(u['_id'])
-
-    return render_template(
-        'admin_cameras.html',
-        cameras=cameras,
-        users=users,
-        user=session.get('user')
-    )
-
-
-@bp.route('/cameras/add', methods=['POST'])
-def add_camera():
-    """Add a new camera."""
-    if 'user' not in session or session.get('role') != 'admin':
-        return redirect(url_for('auth.login'))
-
-    db = current_app.db
-
-    camera_data = {
-        'name': request.form.get('name', 'New Camera'),
-        'location': request.form.get('location', 'Unknown'),
-        'resolution': request.form.get('resolution', '1920x1080'),
-        'rtsp_url': request.form.get('rtsp_url', ''),
-        'owner_id': request.form.get('owner_id') or None,
-        'status': 'active',
-        'created_at': datetime.now(),
-        'updated_at': datetime.now()
-    }
-
-    db.cameras.insert_one(camera_data)
-    flash(f'Camera "{camera_data["name"]}" added successfully!', 'success')
-
-    return redirect(url_for('admin.config_panel'))
-
-
-@bp.route('/cameras/assign', methods=['POST'])
-def assign_camera():
-    """Assign a camera to a client."""
-    if 'user' not in session or session.get('role') != 'admin':
-        return redirect(url_for('auth.login'))
-
-    db = current_app.db
-    camera_id = request.form.get('camera_id')
-    owner_id = request.form.get('owner_id')
-
-    try:
-        update_data = {'owner_id': owner_id if owner_id else None, 'updated_at': datetime.now()}
-        db.cameras.update_one({'_id': ObjectId(camera_id)}, {'$set': update_data})
-
-        if owner_id:
-            owner = db.users.find_one({'_id': ObjectId(owner_id)})
-            owner_email = owner.get('email', 'Unknown') if owner else 'Unknown'
-            flash(f'Camera assigned to {owner_email}!', 'success')
-        else:
-            flash('Camera unassigned.', 'info')
-    except Exception as e:
-        flash(f'Error: {str(e)}', 'danger')
-
-    return redirect(url_for('admin.config_panel'))
-
-
-@bp.route('/cameras/toggle/<camera_id>', methods=['POST'])
-def toggle_camera(camera_id):
-    """Toggle camera active/offline status."""
-    if 'user' not in session or session.get('role') != 'admin':
-        return redirect(url_for('auth.login'))
-
-    db = current_app.db
-    new_status = request.form.get('status', 'active')
-
-    try:
-        db.cameras.update_one(
-            {'_id': ObjectId(camera_id)},
-            {'$set': {'status': new_status, 'updated_at': datetime.now()}}
-        )
-        flash(f'Camera set to {new_status}', 'success')
-    except Exception as e:
-        flash(f'Error: {str(e)}', 'danger')
-
-    return redirect(url_for('admin.config_panel'))
-
-
-@bp.route('/cameras/delete/<camera_id>', methods=['POST'])
-def delete_camera(camera_id):
-    """Delete a camera."""
-    if 'user' not in session or session.get('role') != 'admin':
-        return redirect(url_for('auth.login'))
-
-    db = current_app.db
-
-    try:
-        db.cameras.delete_one({'_id': ObjectId(camera_id)})
-        flash('Camera deleted.', 'success')
-    except Exception as e:
-        flash(f'Error: {str(e)}', 'danger')
-
-    return redirect(url_for('admin.config_panel'))
+# MOVED: camera management now lives entirely in routes/features.py
+# (see features.manage_cameras / assign_camera / create_new_camera /
+# toggle_camera_route / delete_camera_route). This file used to register
+# its own /admin/cameras routes that used raw dict inserts instead of the
+# models/camera.py functions - that collided with features.py's routes on
+# the same URL, and one silently shadowed the other. features.py's version
+# is now the single source of truth.
+#
+# If any templates still link to url_for('admin.config_panel'),
+# url_for('admin.add_camera'), url_for('admin.assign_camera'),
+# url_for('admin.toggle_camera', ...), or url_for('admin.delete_camera', ...)
+# update them to the features.* equivalents:
+#   admin.config_panel  -> features.manage_cameras
+#   admin.add_camera    -> features.create_new_camera
+#   admin.assign_camera -> features.assign_camera
+#   admin.toggle_camera -> features.toggle_camera_route
+#   admin.delete_camera -> features.delete_camera_route
