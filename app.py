@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, redirect, url_for
+from flask import Flask
 from config import Config
 from pymongo import MongoClient
 import logging
@@ -21,14 +21,6 @@ def create_app(config_class=Config):
     except Exception as e:
         print(f"❌ Database Connection Error: {e}")
         raise  # 👈 STOP the app if DB fails, don't continue silently
-    from flask import redirect, url_for
-
-    @app.route('/')
-    def index():
-        return redirect(url_for('auth.login'))
-
-    # Logging
-    logging.basicConfig(level=logging.INFO)
 
     # Register Blueprints
     from routes.auth import bp as auth_bp
@@ -42,6 +34,14 @@ def create_app(config_class=Config):
 
     from routes.live import live_bp
     app.register_blueprint(live_bp)
+
+    # NEW: self-service "my cameras" - lets any user add their own RTSP
+    # camera and have it watched automatically, with in-app notifications.
+    try:
+        from routes.cameras import bp as cameras_bp
+        app.register_blueprint(cameras_bp)
+    except ImportError as e:
+        print(f"Skipping cameras routes: {e}")
 
     # ✅ Admin registered ONLY ONCE with url_prefix
     try:

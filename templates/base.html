@@ -102,8 +102,14 @@
             </li>
 
             <li class="nav-item">
+                <a href="{{ url_for('cameras.my_cameras') }}" class="nav-link {% if request.endpoint and 'cameras.' in request.endpoint %}active{% endif %}">
+                    <i class="fas fa-house-signal me-2" style="width: 20px;"></i> My Cameras
+                </a>
+            </li>
+
+            <li class="nav-item">
                 <a href="{{ url_for('live.live_dashboard') }}" class="nav-link {% if request.endpoint == 'live.live_dashboard' %}active{% endif %}">
-                    <i class="fas fa-video me-2" style="width: 20px;"></i> Live Cameras
+                    <i class="fas fa-video me-2" style="width: 20px;"></i> Webcam Demo (local test)
                 </a>
             </li>
 
@@ -206,6 +212,11 @@
   </div>
 </div>
     
+{% if user %}
+<!-- IN-APP NOTIFICATION TOASTS -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;" id="notifToastContainer"></div>
+{% endif %}
+
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
@@ -219,6 +230,53 @@
       document.body.classList.toggle("sidebar-collapsed");
     });
   });
+  {% if user %}
+  // ===== IN-APP ANOMALY NOTIFICATIONS =====
+  // Polls the server every 8s for new anomalies on this user's cameras
+  // and shows a Bootstrap toast for each one. No external push service.
+  (function () {
+    let lastCheck = null;
+
+    function showAnomalyToast(anomaly) {
+      const container = document.getElementById('notifToastContainer');
+      if (!container) return;
+
+      const toastEl = document.createElement('div');
+      toastEl.className = 'toast align-items-center text-white bg-danger border-0';
+      toastEl.setAttribute('role', 'alert');
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">
+            <strong><i class="fas fa-exclamation-triangle me-1"></i> ${anomaly.anomaly_type || 'Anomaly detected'}</strong><br>
+            <small>${anomaly.description || ''}</small>
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>`;
+      container.appendChild(toastEl);
+      const toast = new bootstrap.Toast(toastEl, { delay: 8000 });
+      toast.show();
+      toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
+    function pollNotifications() {
+      let url = '/my-cameras/notifications/poll';
+      if (lastCheck) url += '?since=' + encodeURIComponent(lastCheck);
+
+      fetch(url)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data) return;
+          lastCheck = data.server_time;
+          (data.anomalies || []).reverse().forEach(showAnomalyToast);
+        })
+        .catch(() => {});
+    }
+
+    // First call just sets the starting timestamp, doesn't show old alerts
+    pollNotifications();
+    setInterval(pollNotifications, 8000);
+  })();
+  {% endif %}
 </script>
 </body>
 </html>

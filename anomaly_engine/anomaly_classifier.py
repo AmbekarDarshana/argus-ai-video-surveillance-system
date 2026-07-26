@@ -31,10 +31,26 @@ class AnomalyClassifier:
 
         # Track how many consecutive frames a person has been seen
         self.person_presence_count = 0
-        self.LOITERING_THRESHOLD = 15  # Must see person for 15+ frames (~3 seconds at 5fps)
+        # FIXED: was 15 frames (~3 seconds at 5fps) - way too short, any
+        # brief pause (checking phone, tying a shoe) read as "loitering".
+        # ~5 classify() calls/sec of real video, so 100 frames = ~20 real
+        # seconds, a much more reasonable bar for actual loitering.
+        self.LOITERING_THRESHOLD = 100
+
+        # ADD: Track consecutive frames of "grappling" overlap, same
+        # persistence pattern as loitering - a single frame of two people
+        # standing close (hug, walking past each other, doorway) should
+        # NOT immediately fire "Physical Violence".
+        self.fight_presence_count = 0
+        self.FIGHT_THRESHOLD = 6  # ~1.2 real seconds of sustained overlap
 
         self.suspicious_objects = {
-            "weapon": ["knife", "scissors", "baseball bat", "bottle", "gun"],
+            # FIXED: removed "bottle" - an ordinary water/soda bottle is
+            # extremely common in any room and was flagging as
+            # "Armed Aggression", almost certainly the #1 source of false
+            # alarms. Rule-based detection can't tell a held bottle from
+            # one sitting on a table, so it's excluded entirely.
+            "weapon": ["knife", "scissors", "baseball bat", "gun"],
             "abandoned_items": ["suitcase", "backpack", "handbag"],
             "vehicles": ["car", "truck", "motorcycle", "bicycle", "bus"],
             "animals": ["dog", "cat", "bird", "horse", "cow", "sheep", "bear"],
@@ -130,21 +146,27 @@ class AnomalyClassifier:
         """
         Detects fights based on:
         1. Two or more people.
-        2. High overlap (grappling/hugging).
-        3. Or Rapid movement (running/punching).
+        2. High overlap (grappling) OR rapid movement, SUSTAINED across
+           multiple consecutive frames (FIXED - previously fired on a
+           single frame, so a hug or two people briefly passing close to
+           each other immediately read as "Physical Violence").
         """
         if counts.get(self.PERSON, 0) < 2:
+            self.fight_presence_count = 0
             return []
 
         # Get all people detections
         people = [d for d in current if d.label == self.PERSON]
         
         # CHECK 1: GRAPPLING (High Overlap)
+        # FIXED: raised from 0.30 - a normal hug or two people standing
+        # near a doorway easily hits 30% box overlap. 0.5+ means the two
+        # bounding boxes are substantially on top of each other.
         is_grappling = False
         for i in range(len(people)):
             for j in range(i + 1, len(people)):
                 overlap = self._bbox_overlap(people[i].bbox, people[j].bbox)
-                if overlap > 0.30: # 30% overlap means they are very close
+                if overlap > 0.50:
                     is_grappling = True
                     break
         
@@ -153,8 +175,18 @@ class AnomalyClassifier:
         if previous:
              moved_fast = self._detect_rapid_movement(current, previous)
 
+        # FIXED: require this condition to hold for several consecutive
+        # frames (not just one) before actually raising an alert - mirrors
+        # the loitering persistence fix.
         if is_grappling or moved_fast:
-            return [Anomaly(
+            self.fight_presence_count += 1
+        else:
+            self.fight_presence_count = 0
+
+        if self.fight_presence_count < self.FIGHT_THRESHOLD:
+            return []
+
+        return [Anomaly(
                 type="Physical Violence", # Behavior Name
                 score=0.85, 
                 description="Aggressive behavior / Fighting detected",

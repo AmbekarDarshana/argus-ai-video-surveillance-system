@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0"><i class="fas fa-video text-primary me-2"></i>My Cameras</h2>
+            <p class="text-muted small mb-0">Add your own camera and the AI will start watching it automatically.</p>
+        </div>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+            <i class="fas fa-plus me-1"></i> Add Camera
+        </button>
+    </div>
+
+    <div class="row g-4">
+        {% if cameras %}
+            {% for cam in cameras %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold text-dark">
+                            <i class="fas fa-video text-secondary me-2"></i>{{ cam.name or 'My Camera' }}
+                        </span>
+                        {% if cam.is_live %}
+                            <span class="badge bg-success"><i class="fas fa-circle fa-xs me-1"></i> Watching</span>
+                        {% else %}
+                            <span class="badge bg-secondary"><i class="fas fa-circle fa-xs me-1"></i> Offline</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="height: 200px; background: #000;">
+                        {% if cam.is_live %}
+                            <img src="{{ url_for('cameras.camera_feed', camera_id=cam._id) }}"
+                                 style="width: 100%; height: 100%; object-fit: cover;">
+                        {% else %}
+                            <div class="d-flex align-items-center justify-content-center h-100 text-white-50">
+                                <div class="text-center">
+                                    <i class="fas fa-video-slash fa-2x mb-2"></i>
+                                    <div class="small">Not connected</div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body py-2 px-3 bg-light d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">{{ cam.location or 'Home' }}</span>
+                        <form method="POST" action="{{ url_for('cameras.remove_camera', camera_id=cam._id) }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Remove this camera? AI monitoring will stop.');">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12 text-center py-5 bg-light rounded border border-dashed">
+                <i class="fas fa-video-slash fa-3x text-muted mb-3 opacity-50"></i>
+                <h5 class="text-muted">No cameras added yet</h5>
+                <p class="text-muted small">Add your first camera to start AI-powered monitoring.</p>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                    <i class="fas fa-plus me-1"></i> Add Camera
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Camera Modal -->
+<div class="modal fade" id="addCameraModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('cameras.add_camera') }}">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Add Your Camera</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Camera Name</label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Front Door" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Location</label>
+                        <input type="text" name="location" class="form-control" placeholder="e.g. Living Room" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Camera Source</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="camera_type" id="typeWebcam" value="webcam" checked onchange="toggleCameraType()">
+                            <label class="btn btn-outline-primary" for="typeWebcam"><i class="fas fa-laptop me-1"></i> My Webcam</label>
+
+                            <input type="radio" class="btn-check" name="camera_type" id="typeRtsp" value="rtsp" onchange="toggleCameraType()">
+                            <label class="btn btn-outline-primary" for="typeRtsp"><i class="fas fa-satellite-dish me-1"></i> IP Camera (RTSP)</label>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            No IP camera yet? Choose "My Webcam" to test everything using this device's built-in camera.
+                        </small>
+                    </div>
+
+                    <div class="mb-3" id="rtspField" style="display:none;">
+                        <label class="form-label fw-bold">RTSP Stream URL</label>
+                        <input type="text" name="rtsp_url" class="form-control"
+                               placeholder="rtsp://admin:password@192.168.1.100:554/stream">
+                        <small class="text-muted">
+                            Find this in your camera's app/settings - most IP cameras
+                            (Hikvision, Dahua, Axis, TP-Link Tapo, etc.) support RTSP.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i> Add & Start Watching
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleCameraType() {
+    const isRtsp = document.getElementById('typeRtsp').checked;
+    document.getElementById('rtspField').style.display = isRtsp ? 'block' : 'none';
+}
+</script>
+
+{% endblock %}

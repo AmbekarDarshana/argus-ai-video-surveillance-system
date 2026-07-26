@@ -14,6 +14,7 @@ import numpy as np
 from anomaly_engine.detector import get_detector
 from anomaly_engine.anomaly_classifier import Anomaly
 from database.connection import get_db
+from models.anomaly import log_anomaly
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +94,21 @@ class RTSPStreamReader:
         self.fps = 30  # default
         
     def connect(self) -> bool:
-        """Attempt to connect to RTSP stream with retries"""
+        """Attempt to connect to RTSP stream with retries.
+
+        Also supports a plain webcam device index (e.g. "0") instead of a
+        real RTSP URL, so this same pipeline can be tested on a laptop
+        webcam without owning an actual IP camera.
+        """
+        # If the "url" is just a number, treat it as a local webcam index
+        # (OpenCV needs an int here, not a string, for device indices).
+        source = int(self.camera_url) if self.camera_url.strip().isdigit() else self.camera_url
+
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Connecting to RTSP stream (attempt {attempt + 1}/{self.max_retries}): {self._mask_url()}")
-                
-                self.cap = cv2.VideoCapture(self.camera_url)
+                logger.info(f"Connecting to stream (attempt {attempt + 1}/{self.max_retries}): {self._mask_url()}")
+
+                self.cap = cv2.VideoCapture(source)
                 
                 # Set optimizations for streaming
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimal buffering
@@ -182,10 +192,11 @@ class LiveCameraProcessor(threading.Thread):
     processed a frame, and calling .stop() raised AttributeError.
     """
 
-    def __init__(self, camera_id: str, stream_reader: RTSPStreamReader):
+    def __init__(self, camera_id: str, stream_reader: RTSPStreamReader, owner_id: str = None):
         super().__init__(daemon=True)
         self.camera_id = camera_id
         self.stream_reader = stream_reader
+        self.owner_id = owner_id
         self.yolo_detector = None
         self.classifier = None
         self.buffer = StreamBuffer()
@@ -276,22 +287,28 @@ class LiveCameraProcessor(threading.Thread):
         logger.info(f"Stopped live processor for camera {self.camera_id}")
 
     def _store_anomaly(self, frame, anomaly, detections):
-        """Persist a detected anomaly for this live camera."""
+        """Persist a detected anomaly for this live camera.
+
+        FIXED: now goes through models.anomaly.log_anomaly() instead of a
+        raw insert (consistent detection_time/status stamping like every
+        other anomaly path), and includes owner_id so the in-app
+        notification-polling endpoint (routes/cameras.py) can find it.
+        """
         try:
             db = get_db()
             anomaly_data = {
                 "video_id": self.camera_id,
+                "owner_id": self.owner_id,
                 "anomaly_type": anomaly.type,
                 "anomaly_score": round(anomaly.score, 2),
                 "description": f"Live Camera: {anomaly.description}",
                 "objects_detected": anomaly.objects,
                 "detection_count": len(detections),
                 "created_at": datetime.now(),
-                "detection_time": datetime.now(),
                 "is_live": True
             }
             if db:
-                db.anomalies.insert_one(anomaly_data)
+                log_anomaly(db, anomaly_data)
             logger.warning(f"LIVE ALERT [{self.camera_id}]: {anomaly.type.upper()}")
         except Exception as e:
             logger.error(f"Failed to store live anomaly: {e}")
@@ -313,7 +330,7 @@ class LiveCameraManager:
         self.processors: Dict[str, LiveCameraProcessor] = {}
         self.lock = threading.Lock()
         
-    def start_camera(self, camera_id: str, rtsp_url: str) -> bool:
+    def start_camera(self, camera_id: str, rtsp_url: str, owner_id: str = None) -> bool:
         """Start live processing for a camera"""
         with self.lock:
             if camera_id in self.processors and self.processors[camera_id].running:
@@ -325,7 +342,7 @@ class LiveCameraManager:
                 stream_reader = RTSPStreamReader(rtsp_url)
                 
                 # Create and start processor (detectors initialized on first frame)
-                processor = LiveCameraProcessor(camera_id, stream_reader)
+                processor = LiveCameraProcessor(camera_id, stream_reader, owner_id=owner_id)
                 processor.start()
                 
                 self.processors[camera_id] = processor
