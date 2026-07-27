@@ -192,8 +192,6 @@ class AnomalyClassifier:
                 description="Aggressive behavior / Fighting detected",
                 objects=[self.PERSON] * 2,
             )]
-            
-        return []
 
     def _detect_animals(self, counts: Counter, detections: List[Detection]) -> List[Anomaly]:
         anomalies: List[Anomaly] = []
@@ -233,7 +231,10 @@ class AnomalyClassifier:
                 dist = np.hypot(c_center[0]-p_center[0], c_center[1]-p_center[1])
                 if dist < min_dist: min_dist = dist
             
-            if min_dist > 40 and min_dist != float('inf'):
+            # FIXED: raised from 40px - normal walking speed between
+            # sampled frames could easily exceed 40px on a 640px-wide
+            # frame, causing false "rapid movement" hits.
+            if min_dist > 90 and min_dist != float('inf'):
                 return True
         return False
 

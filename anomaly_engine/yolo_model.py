@@ -55,15 +55,19 @@ class YOLODetector:
             self.model = YOLO('yolov8n.pt') 
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
-        # IGNORE CONFIG. Force a safe threshold.
-        # 0.40 means AI must be 40% sure before even mentioning it.
-        self.confidence_threshold = 0.40
+        # FIXED: was hardcoded to ignore Config entirely, so tuning the
+        # threshold required a code change instead of just editing
+        # config.py. Now honors Config.CONFIDENCE_THRESHOLD, defaulting
+        # higher (0.5) than before - lower thresholds let through weak,
+        # noisy detections that were feeding false alarms downstream in
+        # the anomaly rules.
+        self.confidence_threshold = getattr(Config, 'CONFIDENCE_THRESHOLD', 0.50)
         
         self.animal_classes = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 
                               'elephant', 'bear', 'zebra', 'giraffe']
         
         # These items are static and often cause false alarms. We will filter them strictly.
-        self.static_suspicious_items = ['handbag', 'suitcase', 'backpack', 'bottle']
+        self.static_suspicious_items = ['handbag', 'suitcase', 'backpack']
 
     def detect(self, frame) -> List[Detection]:
         """

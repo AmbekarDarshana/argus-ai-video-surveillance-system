@@ -29,5 +29,9 @@ class Config:
 
     # AI Config
     YOLO_MODEL = 'yolov8n.pt'
-    CONFIDENCE_THRESHOLD = 0.40
+    # FIXED: raised from 0.40 - this was letting through a lot of weak,
+    # noisy detections that fed straight into false anomaly alerts
+    # downstream. yolo_model.py now actually reads this value (it used to
+    # ignore Config and hardcode 0.40 regardless of what was set here).
+    CONFIDENCE_THRESHOLD = 0.50
     ANOMALY_SCORE_THRESHOLD = 0.60
